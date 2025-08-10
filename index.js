@@ -5,13 +5,10 @@ const app = express();
 
 const admin = require("firebase-admin");
 
-
 const serviceAccount = require("./fixitron-firebase-adminsdk.json");
 
 // const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
 // const serviceAccount = JSON.parse(decoded);
-
-
 
 const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -59,6 +56,7 @@ async function run() {
 
     const serviceCollection = client.db("fixitronDB").collection("services");
     const bookingCollection = client.db("fixitronDB").collection("booking");
+    const contactCollection = client.db("fixitronDB").collection("contacts");
 
     //send service data
     app.post("/services", async (req, res) => {
@@ -72,6 +70,18 @@ async function run() {
       const newBooking = req.body;
       const result = await bookingCollection.insertOne(newBooking);
       res.send(result);
+    });
+
+    // send contact message
+    app.post("/contact", async (req, res) => {
+      try {
+        const contactData = req.body; 
+        contactData.createdAt = new Date(); 
+        const result = await contactCollection.insertOne(contactData);
+        res.status(201).send({ success: true, id: result.insertedId });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
     });
 
     //get booking data
@@ -135,7 +145,7 @@ async function run() {
     app.put("/services/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const userEmail = req.decoded.email;
-      const filter = { _id: new ObjectId(id),  providerEmail: userEmail};
+      const filter = { _id: new ObjectId(id), providerEmail: userEmail };
       const options = { upsert: true };
       const updatedService = req.body;
       const updatedDoc = {
