@@ -51,12 +51,89 @@ const verifyFirebaseToken = async (req, res, next) => {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    //Connect client to the server	(optional starting in v4.7)
+    //await client.connect();
 
     const serviceCollection = client.db("fixitronDB").collection("services");
     const bookingCollection = client.db("fixitronDB").collection("booking");
     const contactCollection = client.db("fixitronDB").collection("contacts");
+
+    const usersCollection = client.db("fixitronDB").collection("users");
+
+    // Get all users
+    app.get("/users", async (req, res) => {
+      try {
+        const users = await usersCollection.find().toArray();
+        res.status(200).send(users);
+      } catch (err) {
+        console.log("Error fetching users:", err);
+        res.status(500).send({ success: false, error: err.message });
+      }
+    });
+
+    //email password 
+    app.post("/signup", async (req, res) => {
+
+      try {
+        const { name, email, role } = req.body;
+        if (!name || !email || !role) {
+          return res.status(400).send({ message: "Missing fields" });
+        }
+
+        const existingUser = await usersCollection.findOne({ email });
+        if (existingUser) {
+          return res.status(400).send({ message: "User already exists" });
+        }
+
+        const result = await usersCollection.insertOne({
+          name,
+          email,
+          role,
+          createdAt: new Date(),
+        });
+
+        res.status(201).send({ success: true, userId: result.insertedId });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    //login roll
+    app.get("/users/role", verifyFirebaseToken, async (req, res) => {
+      const email = req.decoded.email;
+      const user = await usersCollection.findOne({ email });
+      if (!user) return res.status(404).send({ message: "User not found" });
+
+      res.send({ role: user.role });
+    });
+
+    // Check User Exists & Get Role
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email: email });
+
+      if (!user) {
+        return res.send({ exists: false });
+      }
+
+      res.send({
+        exists: true,
+        role: user.role,
+      });
+    });
+
+    // Insert New User
+    app.post("/users", async (req, res) => {
+      const userData = req.body;
+
+      const newUser = {
+        ...userData,
+        createdAt: new Date(), // ✅ Add timestamp
+      };
+
+      const result = await usersCollection.insertOne(newUser);
+      res.send(result);
+    });
 
     //send service data
     app.post("/services", async (req, res) => {
@@ -75,8 +152,8 @@ async function run() {
     // send contact message
     app.post("/contact", async (req, res) => {
       try {
-        const contactData = req.body; 
-        contactData.createdAt = new Date(); 
+        const contactData = req.body;
+        contactData.createdAt = new Date();
         const result = await contactCollection.insertOne(contactData);
         res.status(201).send({ success: true, id: result.insertedId });
       } catch (error) {
@@ -186,7 +263,7 @@ async function run() {
     // await client.db("admin").command({ ping: 1 });
     // console.log(
     //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
+    //  );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
